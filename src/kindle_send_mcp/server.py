@@ -3,7 +3,9 @@ from pathlib import Path
 from typing import Optional
 
 from fastmcp import FastMCP
+from starlette.middleware import Middleware
 
+from .auth import BearerTokenMiddleware
 from .handlers import handle_list_devices, handle_send_book
 from .kindle import KindleSession
 from .library import resolve_book
@@ -46,7 +48,13 @@ def send_book(
 
 def main() -> None:
     port = int(os.environ.get("HTTP_PORT", "9002"))
-    mcp.run(transport="http", host="0.0.0.0", port=port)
+    auth_token = os.environ["AUTH_TOKEN"]
+    mcp.run(
+        transport="http",
+        host="0.0.0.0",
+        port=port,
+        middleware=[Middleware(BearerTokenMiddleware, token=auth_token)],
+    )
 
 
 if __name__ == "__main__":

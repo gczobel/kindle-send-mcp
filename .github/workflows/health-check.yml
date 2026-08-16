@@ -1,0 +1,47 @@
+# .github/workflows/health-check.yml
+name: Health check
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install fastmcp==2.12.3
+      - id: check
+        run: python scripts/health_check.py
+        continue-on-error: true
+      - if: steps.check.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          existing=$(gh issue list --search "Health check failing in:title" --state open --json number --jq '.[0].number')
+          if [ -z "$existing" ]; then
+            gh issue create \
+              --title "Health check failing: kindle-mcp connector unreachable or erroring" \
+              --body "Scheduled health check (\`.github/workflows/health-check.yml\`) failed. See the run log for the exact error: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+If this looks like \`DeviceInfoToken\` or \`invalid_grant\`, see issue #11 for the known OAuth fragility pattern and re-auth steps."
+          else
+            gh issue comment "$existing" --body "Still failing as of this run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi
+      - if: steps.check.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          existing=$(gh issue list --search "Health check failing in:title" --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Recovered — this run succeeded: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            gh issue close "$existing"
+          fi

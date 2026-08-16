@@ -3,7 +3,7 @@ name = "kindle-send-mcp"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "fastmcp==2.12.3",
+    "fastmcp==3.2.0",
     "stkclient>=0.1.1",
 ]
 

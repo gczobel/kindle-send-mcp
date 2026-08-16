@@ -25,16 +25,16 @@ jobs:
       - if: steps.check.outcome == 'failure'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           existing=$(gh issue list --search "Health check failing in:title" --state open --json number --jq '.[0].number')
           if [ -z "$existing" ]; then
+            body=$(printf 'Scheduled health check (`.github/workflows/health-check.yml`) failed. See the run log for the exact error: %s\n\nIf this looks like `DeviceInfoToken` or `invalid_grant`, see issue #11 for the known OAuth fragility pattern and re-auth steps.' "$RUN_URL")
             gh issue create \
               --title "Health check failing: kindle-mcp connector unreachable or erroring" \
-              --body "Scheduled health check (\`.github/workflows/health-check.yml\`) failed. See the run log for the exact error: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-If this looks like \`DeviceInfoToken\` or \`invalid_grant\`, see issue #11 for the known OAuth fragility pattern and re-auth steps."
+              --body "$body"
           else
-            gh issue comment "$existing" --body "Still failing as of this run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            gh issue comment "$existing" --body "Still failing as of this run: $RUN_URL"
           fi
       - if: steps.check.outcome == 'success'
         env:

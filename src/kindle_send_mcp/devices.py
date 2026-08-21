@@ -1,6 +1,16 @@
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+
+
+@dataclass
+class Device:
+    nickname: str
+    email: str
+
+    def to_dict(self) -> dict:
+        return {"nickname": self.nickname, "email": self.email}
 
 
 class DeviceStore:
@@ -15,10 +25,10 @@ class DeviceStore:
     def _save(self, devices: dict) -> None:
         self._path.write_text(json.dumps(devices))
 
-    def list_devices(self) -> list[dict]:
+    def list_devices(self) -> list[Device]:
         devices = self._load()
         return [
-            {"nickname": nickname, "email": email}
+            Device(nickname=nickname, email=email)
             for nickname, email in devices.items()
         ]
 

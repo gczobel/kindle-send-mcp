@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from kindle_send_mcp.devices import DeviceStore
+from kindle_send_mcp.devices import Device, DeviceStore
 
 
 def test_list_devices_returns_empty_when_unset(tmp_path: Path):
@@ -12,8 +12,16 @@ def test_add_device_shows_up_in_list_devices(tmp_path: Path):
     store = DeviceStore(tmp_path)
     store.add_device("paperwhite", "paperwhite_ab12@kindle.com")
     assert store.list_devices() == [
-        {"nickname": "paperwhite", "email": "paperwhite_ab12@kindle.com"}
+        Device(nickname="paperwhite", email="paperwhite_ab12@kindle.com")
     ]
+
+
+def test_device_to_dict_is_json_ready():
+    device = Device(nickname="paperwhite", email="paperwhite_ab12@kindle.com")
+    assert device.to_dict() == {
+        "nickname": "paperwhite",
+        "email": "paperwhite_ab12@kindle.com",
+    }
 
 
 def test_get_email_returns_the_registered_address(tmp_path: Path):

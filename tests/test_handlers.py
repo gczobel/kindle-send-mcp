@@ -1,5 +1,6 @@
 from unittest.mock import MagicMock
 
+from kindle_send_mcp.devices import Device
 from kindle_send_mcp.handlers import (
     handle_add_device,
     handle_list_devices,
@@ -12,7 +13,7 @@ from kindle_send_mcp.state import DeviceState
 def test_list_devices_delegates_to_device_store():
     devices = MagicMock()
     devices.list_devices.return_value = [
-        {"nickname": "paperwhite", "email": "paperwhite_ab12@kindle.com"}
+        Device(nickname="paperwhite", email="paperwhite_ab12@kindle.com")
     ]
 
     result = handle_list_devices(devices)
@@ -41,7 +42,7 @@ def test_send_book_asks_for_device_when_no_default_and_no_target(tmp_path):
     sender = MagicMock()
     devices = MagicMock()
     devices.list_devices.return_value = [
-        {"nickname": "paperwhite", "email": "paperwhite_ab12@kindle.com"}
+        Device(nickname="paperwhite", email="paperwhite_ab12@kindle.com")
     ]
     state = DeviceState(tmp_path)
 
@@ -137,7 +138,7 @@ def test_send_book_reports_unknown_device_without_touching_default(tmp_path):
     devices = MagicMock()
     devices.get_email.return_value = None
     devices.list_devices.return_value = [
-        {"nickname": "paperwhite", "email": "paperwhite_ab12@kindle.com"}
+        Device(nickname="paperwhite", email="paperwhite_ab12@kindle.com")
     ]
 
     result = handle_send_book(

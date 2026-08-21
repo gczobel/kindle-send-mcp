@@ -4,9 +4,10 @@ from typing import Optional
 
 from fastmcp import FastMCP
 
-from .handlers import handle_list_devices, handle_send_book
-from .kindle import KindleSession
+from .devices import DeviceStore
+from .handlers import handle_add_device, handle_list_devices, handle_send_book
 from .library import resolve_book
+from .smtp_sender import SmtpSender
 from .state import DeviceState
 
 STATE_DIR = Path(os.environ.get("STATE_DIR", "/state"))
@@ -15,30 +16,46 @@ DB_PATH = BOOKS_DIR / os.environ.get("CALIBRE_DB_FILENAME", "metadata.db")
 
 mcp = FastMCP("Kindle Send MCP")
 
-_kindle = KindleSession(STATE_DIR)
+_sender = SmtpSender(
+    os.environ.get("SENDER_EMAIL", ""), os.environ.get("SMTP_APP_PASSWORD", "")
+)
+_devices = DeviceStore(STATE_DIR)
 _state = DeviceState(STATE_DIR)
 
 
 @mcp.tool()
 def list_devices() -> list[dict]:
-    """List Kindle devices registered to this Amazon account."""
-    return handle_list_devices(_kindle)
+    """List Kindle devices registered with this server."""
+    return handle_list_devices(_devices)
 
 
 @mcp.tool()
-def send_book(
-    book_id: int, target_device_serial_number: Optional[str] = None
-) -> dict:
+def add_device(nickname: str, email: str) -> dict:
+    """Register a Kindle device by nickname and its @kindle.com address.
+
+    Find the address in Amazon's Manage Your Content and Devices ->
+    Preferences -> Personal Document Settings -> Send-to-Kindle E-Mail
+    Settings.
+    """
+    return handle_add_device(nickname, email, devices=_devices)
+
+
+@mcp.tool()
+def send_book(book_id: int, target_device_nickname: Optional[str] = None) -> dict:
     """Send a book from the library to a Kindle device.
 
-    If no target_device_serial_number is given and no default device is
-    set yet, returns the device list instead of guessing — call this
-    again with a target_device_serial_number once the user picks one.
+    If no target_device_nickname is given and no default device is set
+    yet, returns the device list instead of guessing -- call this again
+    with a target_device_nickname once the user picks one. A "sent"
+    status means the message was handed off successfully; Amazon gives
+    no delivery confirmation and silently drops mail from an unapproved
+    sender, see docs/adr/0001.
     """
     return handle_send_book(
         book_id,
-        target_device_serial_number,
-        kindle=_kindle,
+        target_device_nickname,
+        sender=_sender,
+        devices=_devices,
         state=_state,
         resolve=lambda bid: resolve_book(DB_PATH, BOOKS_DIR, bid),
     )

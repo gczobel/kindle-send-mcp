@@ -13,12 +13,10 @@ class DeviceState:
         if not self._path.exists():
             return None
         data = json.loads(self._path.read_text())
-        return data.get("default_device_serial_number")
+        return data.get("default_device_nickname")
 
-    def set_default(self, serial_number: str) -> None:
-        self._path.write_text(
-            json.dumps({"default_device_serial_number": serial_number})
-        )
+    def set_default(self, nickname: str) -> None:
+        self._path.write_text(json.dumps({"default_device_nickname": nickname}))
 
     def clear_default(self) -> None:
         if self._path.exists():

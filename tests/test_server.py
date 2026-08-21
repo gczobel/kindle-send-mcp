@@ -6,6 +6,8 @@ from pathlib import Path
 def test_server_module_wires_state_kindle_and_paths(tmp_path, monkeypatch):
     monkeypatch.setenv("STATE_DIR", str(tmp_path / "state"))
     monkeypatch.setenv("CALIBRE_LIBRARY_PATH", str(tmp_path / "books"))
+    monkeypatch.setenv("SENDER_EMAIL", "sender@example.com")
+    monkeypatch.setenv("SMTP_APP_PASSWORD", "app-password")
     (tmp_path / "state").mkdir()
     (tmp_path / "books").mkdir()
 

@@ -10,13 +10,13 @@ def test_get_default_returns_none_when_unset(tmp_path: Path):
 
 def test_set_and_get_default(tmp_path: Path):
     state = DeviceState(tmp_path)
-    state.set_default("G090LZ123456789")
-    assert state.get_default() == "G090LZ123456789"
+    state.set_default("paperwhite")
+    assert state.get_default() == "paperwhite"
 
 
 def test_clear_default(tmp_path: Path):
     state = DeviceState(tmp_path)
-    state.set_default("G090LZ123456789")
+    state.set_default("paperwhite")
     state.clear_default()
     assert state.get_default() is None
 

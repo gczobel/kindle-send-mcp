@@ -1,32 +1,33 @@
-"""Calls the deployed kindle-send-mcp connector's list_devices() over real
-HTTP and exits non-zero on any failure. Run on a schedule (see
-.github/workflows/health-check.yml) to catch OAuth session invalidation
-(see issue #11) independently of manual testing."""
+"""Checks that the SMTP sender credential still authenticates. Run on a
+low-frequency schedule (see .github/workflows/health-check.yml) to catch
+credential rot before a real send fails. Exits non-zero on failure and
+relies on GitHub Actions' own failed-workflow notification to report it
+-- deliberately not sending an email itself, since a broken credential
+can't reliably email you that it's broken."""
 
-import asyncio
+import os
+import smtplib
 import sys
 
-from fastmcp import Client
+SMTP_HOST = "smtp.gmail.com"
+SMTP_PORT = 587
 
-SERVER_URL = "https://kindle-mcp.gczobel.dpdns.org/mcp"
 
+def main() -> int:
+    sender_email = os.environ["SENDER_EMAIL"]
+    app_password = os.environ["SMTP_APP_PASSWORD"]
 
-async def main() -> int:
     try:
-        async with Client(SERVER_URL) as client:
-            result = await client.call_tool("list_devices", {})
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
+            smtp.starttls()
+            smtp.login(sender_email, app_password)
     except Exception as exc:
         print(f"FAIL: {exc}")
         return 1
 
-    devices = result.data
-    if not devices:
-        print("FAIL: list_devices() returned no devices")
-        return 1
-
-    print(f"OK: {len(devices)} device(s) returned")
+    print("OK: SMTP login succeeded")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(asyncio.run(main()))
+    sys.exit(main())

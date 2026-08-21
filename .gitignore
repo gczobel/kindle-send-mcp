@@ -3,5 +3,5 @@ __pycache__/
 .pytest_cache/
 .venv/
 *.egg-info/
-client.json
+.env
 default_device.json

@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Never read, print, cat, or log the contents of `client.json` (or any file matching `*client.json`, `default_device.json`) in this repo or its state directory. It is a live OAuth credential for the operator's real Amazon account — treat it exactly like a password.
+Never read, print, cat, or log the contents of `.env` in this repo directory. It's a local setup artifact (from the SMTP onboarding wizard) holding a live SMTP app password for the operator's real email account — the deployed server never reads it, it only exists here on disk. Treat it exactly like a password.
 
 ## Agent skills
 

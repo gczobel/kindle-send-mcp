@@ -3,12 +3,14 @@ name: Health check
 
 on:
   schedule:
-    - cron: "0 * * * *"
+    # Monthly. No live Amazon session exists anymore to invalidate
+    # between checks, so a low frequency is enough to catch SMTP
+    # credential rot before a real send hits it.
+    - cron: "0 6 1 * *"
   workflow_dispatch: {}
 
 permissions:
   contents: read
-  issues: write
 
 jobs:
   check:
@@ -18,30 +20,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install fastmcp==2.12.3
-      - id: check
+      - env:
+          SENDER_EMAIL: ${{ vars.SENDER_EMAIL }}
+          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
         run: python scripts/health_check.py
-        continue-on-error: true
-      - if: steps.check.outcome == 'failure'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          existing=$(gh issue list --search "Health check failing in:title" --state open --json number --jq '.[0].number')
-          if [ -z "$existing" ]; then
-            body=$(printf 'Scheduled health check (`.github/workflows/health-check.yml`) failed. See the run log for the exact error: %s\n\nIf this looks like `DeviceInfoToken` or `invalid_grant`, see issue #11 for the known OAuth fragility pattern and re-auth steps.' "$RUN_URL")
-            gh issue create \
-              --title "Health check failing: kindle-mcp connector unreachable or erroring" \
-              --body "$body"
-          else
-            gh issue comment "$existing" --body "Still failing as of this run: $RUN_URL"
-          fi
-      - if: steps.check.outcome == 'success'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          existing=$(gh issue list --search "Health check failing in:title" --state open --json number --jq '.[0].number')
-          if [ -n "$existing" ]; then
-            gh issue comment "$existing" --body "Recovered — this run succeeded: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            gh issue close "$existing"
-          fi

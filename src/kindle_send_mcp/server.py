@@ -3,24 +3,34 @@ from pathlib import Path
 from typing import Optional
 
 from fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import PlainTextResponse, RedirectResponse, Response
 
 from .devices import DeviceStore
+from .gmail_oauth import GmailOAuth
 from .handlers import handle_add_device, handle_list_devices, handle_send_book
 from .library import resolve_book
 from .smtp_sender import SmtpSender
 from .state import DeviceState
+from .token_store import TokenStore
 
 STATE_DIR = Path(os.environ.get("STATE_DIR", "/state"))
 BOOKS_DIR = Path(os.environ.get("CALIBRE_LIBRARY_PATH", "/books"))
 DB_PATH = BOOKS_DIR / os.environ.get("CALIBRE_DB_FILENAME", "metadata.db")
+PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "")
 
 mcp = FastMCP("Kindle Send MCP")
 
-_sender = SmtpSender(
-    os.environ.get("SENDER_EMAIL", ""), os.environ.get("SMTP_APP_PASSWORD", "")
-)
 _devices = DeviceStore(STATE_DIR)
 _state = DeviceState(STATE_DIR)
+_tokens = TokenStore(STATE_DIR)
+_oauth = GmailOAuth(
+    client_id=os.environ.get("GOOGLE_CLIENT_ID", ""),
+    client_secret=os.environ.get("GOOGLE_CLIENT_SECRET", ""),
+    redirect_uri=f"{PUBLIC_BASE_URL}/oauth/callback",
+    token_store=_tokens,
+)
+_sender = SmtpSender(os.environ.get("SENDER_EMAIL", ""), _oauth.get_access_token)
 
 
 @mcp.tool()
@@ -46,19 +56,42 @@ def send_book(book_id: int, target_device_nickname: Optional[str] = None) -> dic
 
     If no target_device_nickname is given and no default device is set
     yet, returns the device list instead of guessing -- call this again
-    with a target_device_nickname once the user picks one. A "sent"
-    status means the message was handed off successfully; Amazon gives
-    no delivery confirmation and silently drops mail from an unapproved
-    sender, see docs/adr/0001.
+    with a target_device_nickname once the user picks one. A "needs_
+    authorization" status means the sender account needs a one-time setup
+    -- open the returned auth_url in a browser, sign in, and call this
+    again afterward. A "sent" status means the message was handed off
+    successfully; Amazon gives no delivery confirmation and silently
+    drops mail from an unapproved sender, see docs/adr/0001.
     """
     return handle_send_book(
         book_id,
         target_device_nickname,
         sender=_sender,
         devices=_devices,
+        oauth=_oauth,
         state=_state,
         resolve=lambda bid: resolve_book(DB_PATH, BOOKS_DIR, bid),
     )
+
+
+@mcp.custom_route("/oauth/start", methods=["GET"])
+async def oauth_start(request: Request) -> Response:
+    if _oauth.is_authorized():
+        return PlainTextResponse("Already authorized.", status_code=403)
+    return RedirectResponse(_oauth.authorization_url())
+
+
+@mcp.custom_route("/oauth/callback", methods=["GET"])
+async def oauth_callback(request: Request) -> Response:
+    if _oauth.is_authorized():
+        return PlainTextResponse("Already authorized.", status_code=403)
+
+    code = request.query_params.get("code")
+    if code is None:
+        return PlainTextResponse("Missing code parameter.", status_code=400)
+
+    _oauth.exchange_code(code)
+    return PlainTextResponse("Authorization complete. You can close this tab.")
 
 
 def main() -> None:

@@ -1,6 +1,7 @@
 from typing import Callable, Optional
 
 from .devices import DeviceStore
+from .gmail_oauth import GmailOAuth
 from .library import ResolvedBook
 from .smtp_sender import SmtpSender
 from .state import DeviceState
@@ -25,6 +26,7 @@ def handle_send_book(
     *,
     sender: SmtpSender,
     devices: DeviceStore,
+    oauth: GmailOAuth,
     state: DeviceState,
     resolve: Callable[[int], ResolvedBook],
 ) -> dict:
@@ -42,6 +44,9 @@ def handle_send_book(
             "devices": _devices_as_dicts(devices),
         }
 
+    if not oauth.is_authorized():
+        return {"status": "needs_authorization", "auth_url": oauth.authorization_url()}
+
     book = resolve(book_id)
     try:
         sender.send_file(
@@ -49,6 +54,11 @@ def handle_send_book(
         )
     except Exception as exc:
         state.clear_default()
+        if not oauth.is_authorized():
+            return {
+                "status": "needs_authorization",
+                "auth_url": oauth.authorization_url(),
+            }
         return {"status": "failed", "device": target, "error": str(exc)}
 
     if target_nickname is not None:

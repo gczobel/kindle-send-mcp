@@ -17,7 +17,7 @@ from .token_store import TokenStore
 STATE_DIR = Path(os.environ.get("STATE_DIR", "/state"))
 BOOKS_DIR = Path(os.environ.get("CALIBRE_LIBRARY_PATH", "/books"))
 DB_PATH = BOOKS_DIR / os.environ.get("CALIBRE_DB_FILENAME", "metadata.db")
-PUBLIC_BASE_URL = os.environ.get("PUBLIC_BASE_URL", "")
+PUBLIC_OAUTH_CALLBACK_URL = os.environ.get("PUBLIC_OAUTH_CALLBACK_URL", "")
 
 mcp = FastMCP("Kindle Send MCP")
 
@@ -27,7 +27,7 @@ _tokens = TokenStore(STATE_DIR)
 _oauth = GmailOAuth(
     client_id=os.environ.get("GOOGLE_CLIENT_ID", ""),
     client_secret=os.environ.get("GOOGLE_CLIENT_SECRET", ""),
-    redirect_uri=f"{PUBLIC_BASE_URL}/oauth/callback",
+    redirect_uri=PUBLIC_OAUTH_CALLBACK_URL,
     token_store=_tokens,
 )
 _sender = SmtpSender(os.environ.get("SENDER_EMAIL", ""), _oauth.get_access_token)

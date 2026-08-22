@@ -58,17 +58,21 @@ address. Skip this and every send vanishes silently.
 4. Clients tab -> Create OAuth client -> Application type: **Web
    application** (not Desktop app -- Google restricts Desktop clients
    to loopback redirects only, incompatible with a server-hosted
-   callback). Authorized redirect URI:
-   `<your PUBLIC_BASE_URL>/oauth/callback`.
-5. Copy the Client ID and Client Secret.
+   callback). Authorized redirect URI: your server's real public URL
+   plus `/oauth/callback` (e.g.
+   `https://kindle-mcp.example.com/oauth/callback`). Leave Authorized
+   JavaScript origins blank -- the code exchange happens server-side,
+   never in a browser.
+5. Copy the Client ID, Client Secret, and the exact redirect URI you
+   just registered.
 
 ### 4. Configure the server
 
 - `SENDER_EMAIL` / `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` -- from
   steps 1 and 3.
-- `PUBLIC_BASE_URL` -- the server's real public URL (e.g.
-  `https://kindle-mcp.example.com`), used to build the OAuth redirect
-  URI. Must exactly match what you registered in step 3.4.
+- `PUBLIC_OAUTH_CALLBACK_URL` -- the exact redirect URI you registered
+  in step 3.4, copied verbatim (not reconstructed) so it can never
+  silently drift from what Google actually has on file.
 - `STATE_DIR` (default `/state`) -- where `devices.json` and
   `oauth_refresh_token.json` are stored. Mount a host directory here,
   read-write.
@@ -78,13 +82,14 @@ address. Skip this and every send vanishes silently.
 ### 5. Authorize the sender account
 
 Nothing to do here upfront -- the first time you ask to send a book,
-`send_book` returns a `needs_authorization` status with a link
-(`<PUBLIC_BASE_URL>/oauth/start`). The calling agent should present
-that link, ask you to confirm once you've signed in as the sender
-account, and retry the same request on its own -- the same pattern it
-already uses for `needs_device_selection`, not something you need to
-re-ask for yourself. This is a one-time step: the resulting refresh
-token is stored server-side and used silently for every future send.
+`send_book` returns a `needs_authorization` status with a link (your
+server's public URL plus `/oauth/start`). The calling agent should
+present that link, ask you to confirm once you've signed in as the
+sender account, and retry the same request on its own -- the same
+pattern it already uses for `needs_device_selection`, not something you
+need to re-ask for yourself. This is a one-time step: the resulting
+refresh token is stored server-side and used silently for every future
+send.
 
 If you'd rather get it out of the way before ever asking for a book,
 you can open that link directly once the server's deployed.
@@ -103,7 +108,7 @@ docker run -d \
   -e SENDER_EMAIL=your-bot@gmail.com \
   -e GOOGLE_CLIENT_ID=xxxxxxxxxx.apps.googleusercontent.com \
   -e GOOGLE_CLIENT_SECRET=xxxxxxxxxxxxxxxx \
-  -e PUBLIC_BASE_URL=https://kindle-mcp.example.com \
+  -e PUBLIC_OAUTH_CALLBACK_URL=https://kindle-mcp.example.com/oauth/callback \
   -v /path/to/your/state-dir:/state \
   -v /path/to/your/calibre/library:/books:ro \
   -p 9002:9002 \

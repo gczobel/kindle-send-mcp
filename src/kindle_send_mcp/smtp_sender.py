@@ -42,8 +42,8 @@ class SmtpSender:
         )
 
         access_token = self._get_access_token()
-        raw = f"user={self._sender_email}\x01auth=Bearer {access_token}\x01\x01"
-        auth_string = base64.b64encode(raw.encode()).decode()
+        sasl_payload = f"user={self._sender_email}\x01auth=Bearer {access_token}\x01\x01"
+        auth_string = base64.b64encode(sasl_payload.encode()).decode()
 
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as smtp:
             smtp.starttls()

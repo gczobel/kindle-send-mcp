@@ -32,3 +32,9 @@ def test_clear_when_never_set_is_a_noop(tmp_path: Path):
     store = TokenStore(tmp_path)
     store.clear()
     assert store.has_token() is False
+
+
+def test_has_token_is_false_when_file_exists_but_refresh_token_is_null(tmp_path: Path):
+    (tmp_path / "oauth_refresh_token.json").write_text('{"refresh_token": null}')
+    store = TokenStore(tmp_path)
+    assert store.has_token() is False

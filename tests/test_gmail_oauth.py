@@ -1,6 +1,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from google.auth.exceptions import RefreshError
+
 from kindle_send_mcp.gmail_oauth import GmailOAuth
 from kindle_send_mcp.token_store import TokenStore
 
@@ -93,7 +95,7 @@ def test_get_access_token_refreshes_and_returns_the_token(tmp_path: Path):
     assert tokens.has_token() is True
 
 
-def test_get_access_token_clears_the_token_when_refresh_fails(tmp_path: Path):
+def test_get_access_token_clears_the_token_when_google_rejects_the_refresh(tmp_path: Path):
     tokens = TokenStore(tmp_path)
     tokens.save_refresh_token("refresh-abc")
     oauth = GmailOAuth(
@@ -104,13 +106,36 @@ def test_get_access_token_clears_the_token_when_refresh_fails(tmp_path: Path):
     )
 
     def fake_refresh(self, request):
-        raise RuntimeError("invalid_grant")
+        raise RefreshError("invalid_grant")
 
     with patch("kindle_send_mcp.gmail_oauth.Credentials.refresh", fake_refresh):
         try:
             oauth.get_access_token()
             assert False, "expected an exception"
-        except RuntimeError:
+        except RefreshError:
             pass
 
     assert tokens.has_token() is False
+
+
+def test_get_access_token_keeps_the_token_on_an_unrelated_failure(tmp_path: Path):
+    tokens = TokenStore(tmp_path)
+    tokens.save_refresh_token("refresh-abc")
+    oauth = GmailOAuth(
+        client_id="id",
+        client_secret="secret",
+        redirect_uri="https://kindle-mcp.example.com/oauth/callback",
+        token_store=tokens,
+    )
+
+    def fake_refresh(self, request):
+        raise TimeoutError("network blip")
+
+    with patch("kindle_send_mcp.gmail_oauth.Credentials.refresh", fake_refresh):
+        try:
+            oauth.get_access_token()
+            assert False, "expected an exception"
+        except TimeoutError:
+            pass
+
+    assert tokens.has_token() is True

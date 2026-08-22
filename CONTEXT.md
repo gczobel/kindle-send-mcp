@@ -9,8 +9,8 @@ A Kindle (or Kindle app) the operator wants to receive books on. Identified by a
 _Avoid_: "serial number" as the identifying key — that was Amazon's OAuth-era device identifier and is no longer used; nothing in this system calls Amazon's API anymore.
 
 **Sender**:
-The dedicated email address this server sends from, added to Amazon's Approved Personal Document Email List. Deliberately separate from the operator's personal email, since this address is used by an unattended, network-reachable service.
-_Avoid_: conflating with the operator's own inbox.
+The email address this server sends from, added to Amazon's Approved Personal Document Email List. Originally planned as a dedicated address separate from the operator's personal email; in practice it's the operator's real Gmail account, because it's also the one they authorize as in Google's OAuth consent screen — the two have to match exactly, or every send fails (see docs/adr/0002).
+_Avoid_: assuming this is a low-stakes throwaway address; it currently is the operator's real inbox.
 
 **Delivery**:
 Handing an EPUB to SMTP, addressed to a device's `@kindle.com` address. This confirms only that the message was accepted by the SMTP server — it does **not** confirm the Kindle received it. Amazon's Send-to-Kindle email service gives no delivery confirmation and silently discards mail from unapproved senders (no bounce, no error).

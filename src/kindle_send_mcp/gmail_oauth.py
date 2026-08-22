@@ -38,7 +38,17 @@ class GmailOAuth:
         }
 
     def _flow(self) -> Flow:
-        flow = Flow.from_client_config(self._client_config(), scopes=SCOPES)
+        # authorization_url() and exchange_code() each build their own Flow
+        # instance -- they're two separate HTTP requests, potentially far
+        # apart in time, with nothing carrying a PKCE code_verifier between
+        # them. Auto-generated PKCE would mean the verifier used at exchange
+        # time never matches the challenge Google actually has on file
+        # (invalid_grant: Missing code verifier). Not needed anyway: this is
+        # a confidential client (has a client_secret), which is what PKCE
+        # exists to substitute for on clients that can't hold one.
+        flow = Flow.from_client_config(
+            self._client_config(), scopes=SCOPES, autogenerate_code_verifier=False
+        )
         flow.redirect_uri = self._redirect_uri
         return flow
 

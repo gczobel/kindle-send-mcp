@@ -33,11 +33,17 @@ def test_authorization_url_returns_the_url_from_flow(tmp_path: Path):
     fake_flow = MagicMock()
     fake_flow.authorization_url.return_value = ("https://accounts.google.com/consent", "state-xyz")
 
-    with patch("kindle_send_mcp.gmail_oauth.Flow.from_client_config", return_value=fake_flow):
+    with patch(
+        "kindle_send_mcp.gmail_oauth.Flow.from_client_config", return_value=fake_flow
+    ) as from_client_config:
         url = oauth.authorization_url()
 
     assert url == "https://accounts.google.com/consent"
     assert fake_flow.redirect_uri == "https://kindle-mcp.example.com/oauth/callback"
+    # PKCE's code_verifier can't survive across the two separate HTTP requests
+    # (authorization_url and exchange_code each build a fresh Flow instance) --
+    # disabled since the client_secret already secures a confidential client.
+    assert from_client_config.call_args.kwargs["autogenerate_code_verifier"] is False
 
 
 def test_exchange_code_saves_the_refresh_token(tmp_path: Path):
@@ -52,11 +58,14 @@ def test_exchange_code_saves_the_refresh_token(tmp_path: Path):
     fake_flow = MagicMock()
     fake_flow.credentials.refresh_token = "refresh-from-google"
 
-    with patch("kindle_send_mcp.gmail_oauth.Flow.from_client_config", return_value=fake_flow):
+    with patch(
+        "kindle_send_mcp.gmail_oauth.Flow.from_client_config", return_value=fake_flow
+    ) as from_client_config:
         oauth.exchange_code("auth-code-123")
 
     fake_flow.fetch_token.assert_called_once_with(code="auth-code-123")
     assert tokens.load_refresh_token() == "refresh-from-google"
+    assert from_client_config.call_args.kwargs["autogenerate_code_verifier"] is False
 
 
 def test_get_access_token_raises_when_not_authorized(tmp_path: Path):

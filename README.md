@@ -94,6 +94,15 @@ send.
 If you'd rather get it out of the way before ever asking for a book,
 you can open that link directly once the server's deployed.
 
+**Sign in as the exact account `SENDER_EMAIL` names.** If your browser
+is already signed into a different Google account, Google's account
+chooser defaults to it -- easy to click through without noticing.
+XOAUTH2 requires the account you authorize as and `SENDER_EMAIL` to be
+the *same* account; a mismatch fails at send time with `535 Username
+and Password not accepted`, not at authorization time (the consent
+step itself succeeds either way, so this doesn't surface until the
+first real send).
+
 ### 6. Register your devices
 
 Find each device's `@kindle.com` address in Manage Your Content and

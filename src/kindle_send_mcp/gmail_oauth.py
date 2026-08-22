@@ -1,3 +1,4 @@
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
@@ -42,7 +43,11 @@ class GmailOAuth:
         return flow
 
     def authorization_url(self) -> str:
-        url, _state = self._flow().authorization_url()
+        # prompt="consent" forces Google to re-issue a refresh token even
+        # if this account already granted consent before -- without it, a
+        # second /oauth/start after the stored token was lost some other
+        # way could silently come back with no refresh token at all.
+        url, _state = self._flow().authorization_url(prompt="consent")
         return url
 
     def exchange_code(self, code: str) -> None:
@@ -64,7 +69,13 @@ class GmailOAuth:
         )
         try:
             credentials.refresh(Request())
-        except Exception:
+        except RefreshError:
+            # Google explicitly rejected this refresh token (revoked,
+            # expired from disuse, etc.) -- it will never work again, so
+            # clear it now rather than retrying it on every future send.
+            # Other failures (a network timeout, say) don't mean the
+            # token itself is bad, so they're left alone and just
+            # propagate.
             self._token_store.clear()
             raise
         return credentials.token

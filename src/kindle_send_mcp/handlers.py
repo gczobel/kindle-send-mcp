@@ -11,6 +11,10 @@ def _devices_as_dicts(devices: DeviceStore) -> list[dict]:
     return [d.to_dict() for d in devices.list_devices()]
 
 
+def _needs_authorization(oauth: GmailOAuth) -> dict:
+    return {"status": "needs_authorization", "auth_url": oauth.authorization_url()}
+
+
 def handle_list_devices(devices: DeviceStore) -> list[dict]:
     return _devices_as_dicts(devices)
 
@@ -45,7 +49,7 @@ def handle_send_book(
         }
 
     if not oauth.is_authorized():
-        return {"status": "needs_authorization", "auth_url": oauth.authorization_url()}
+        return _needs_authorization(oauth)
 
     book = resolve(book_id)
     try:
@@ -55,10 +59,7 @@ def handle_send_book(
     except Exception as exc:
         state.clear_default()
         if not oauth.is_authorized():
-            return {
-                "status": "needs_authorization",
-                "auth_url": oauth.authorization_url(),
-            }
+            return _needs_authorization(oauth)
         return {"status": "failed", "device": target, "error": str(exc)}
 
     if target_nickname is not None:

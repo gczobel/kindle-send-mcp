@@ -8,7 +8,7 @@ class TokenStore:
         self._path = Path(state_dir) / "oauth_refresh_token.json"
 
     def has_token(self) -> bool:
-        return self._path.exists()
+        return self.load_refresh_token() is not None
 
     def save_refresh_token(self, refresh_token: str) -> None:
         self._path.write_text(json.dumps({"refresh_token": refresh_token}))

@@ -55,13 +55,18 @@ def send_book(book_id: int, target_device_nickname: Optional[str] = None) -> dic
     """Send a book from the library to a Kindle device.
 
     If no target_device_nickname is given and no default device is set
-    yet, returns the device list instead of guessing -- call this again
-    with a target_device_nickname once the user picks one. A "needs_
-    authorization" status means the sender account needs a one-time setup
-    -- open the returned auth_url in a browser, sign in, and call this
-    again afterward. A "sent" status means the message was handed off
-    successfully; Amazon gives no delivery confirmation and silently
-    drops mail from an unapproved sender, see docs/adr/0001.
+    yet, returns the device list instead of guessing -- ask the user
+    which device, then call this again with their choice.
+
+    A "needs_authorization" status means the sender account needs a
+    one-time setup: present the returned auth_url to the user, ask them
+    to confirm once they've signed in there, then retry this exact same
+    call yourself -- don't ask the user to re-request the book, you
+    already have everything needed to retry.
+
+    A "sent" status means the message was handed off successfully;
+    Amazon gives no delivery confirmation and silently drops mail from
+    an unapproved sender, see docs/adr/0001.
     """
     return handle_send_book(
         book_id,

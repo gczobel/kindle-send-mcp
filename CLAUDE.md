@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Never read, print, cat, or log the contents of `.env` in this repo directory. It's a local setup artifact (from the SMTP onboarding wizard) holding a live SMTP app password for the operator's real email account — the deployed server never reads it, it only exists here on disk. Treat it exactly like a password.
+Never read, print, cat, or log the contents of `.env` in this repo directory, or `oauth_refresh_token.json` anywhere in this repo or a local state directory. `.env` is a stale local artifact from the original App Password setup (superseded by OAuth2, see docs/adr/0002) and may still hold a real SMTP app password. `oauth_refresh_token.json` is a live OAuth2 credential for the operator's real Gmail account. Treat both exactly like a password.
 
 ## Agent skills
 

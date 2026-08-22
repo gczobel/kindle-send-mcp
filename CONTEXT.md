@@ -18,3 +18,7 @@ _Avoid_: "sent" implying confirmed delivery — that was true under the old Amaz
 
 **Default device**:
 The device a send targets when none is specified explicitly. Sticky across calls until explicitly changed or cleared on a failed send.
+
+**Authorized**:
+Whether the server currently holds a working OAuth2 credential (a refresh token) letting it send as the Sender. Not authorized — because setup never happened, or a previously-working credential went stale — means `send_book` returns a one-time setup link instead of attempting to send. Becomes true the moment that link is completed once; nothing about normal use ever asks again unless the credential itself later stops working.
+_Avoid_: confusing with Amazon's Approved Personal Document Email List (a completely different account, a static allowlist Amazon checks, not a credential this server holds at all).

@@ -26,6 +26,33 @@ not that the Kindle received it. Resend's own logs are the audit trail.
 See [CONTEXT.md](CONTEXT.md) for the exact vocabulary this server uses
 around delivery.
 
+## First-time onboarding
+
+Everything that must be true before the first successful `send_book`, in
+order. (Vocabulary: "device" = a registered Kindle by nickname + `@kindle.com`
+address; "sender" = the From address; see [CONTEXT.md](CONTEXT.md).)
+
+1. **Resend** — an account, a **verified** sending domain (the sender address
+   lives on it), and an API key. The key goes into `RESEND_API_KEY`; the
+   sender address into `RESEND_FROM` (e.g. `kindle@<your-sending-domain>`).
+   Missing either raises a clear error at send time; the server still boots.
+2. **Amazon** — the exact `RESEND_FROM` address must be on the account's
+   Approved Personal Document E-mail List. Without this, `send_book` returns
+   "sent" but Amazon **silently drops** the mail — no bounce, no error, and no
+   delivery confirmation anywhere in the chain (see Reliability posture).
+3. **Server env** — `RESEND_API_KEY`, `RESEND_FROM`, `STATE_DIR`,
+   `CALIBRE_LIBRARY_PATH` (see "Setting up your own instance" below).
+4. **Devices** — register each Kindle with the `add_device` tool (nickname +
+   `@kindle.com` address). `send_book` needs a registered device: pass
+   `target_device_nickname`, or send once with an explicit target to set the
+   default.
+
+**For agents connecting to a running instance:** connect to the MCP endpoint,
+then the tools are `list_devices`, `add_device`, `send_book`. If `send_book`
+returns `needs_device_selection`, ask the user which device and retry with
+`target_device_nickname` — the server does not guess. A "sent" status is
+handoff to Resend only, not delivery.
+
 ## Setting up your own instance
 
 Sender authentication is a Resend API key, not SMTP credentials or OAuth —
@@ -92,3 +119,15 @@ docker run -d \
   has been chosen yet (no default set, no explicit target given),
   returns the device list instead of guessing which one you meant.
   Sends directly — there is no authorization step.
+
+## Operations
+
+- **After any stack redeploy (new container), MCP clients must reconnect.**
+  A client session from before the redeploy holds a session id the new
+  container doesn't know; its next call is rejected with
+  `400 Bad Request: Missing session ID`, which clients render as a generic
+  "Error occurred during tool execution" (the server logs only the 400).
+  Reconnect or restart the MCP client (e.g. restart Claude Code or toggle the
+  server connection) and retry.
+- The server logs request lines only. The Resend dashboard is the audit trail
+  for accepted sends (see Reliability posture).

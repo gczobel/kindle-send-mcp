@@ -55,6 +55,8 @@ handoff to Resend only, not delivery.
 
 ## Setting up your own instance
 
+The full one-time deployment checklist, including the steps only a human can do (Resend dashboard, Amazon, container env), is in [docs/deployment-guide.md](docs/deployment-guide.md).
+
 Sender authentication is a Resend API key, not SMTP credentials or OAuth —
 nothing expires and nothing needs re-authorizing. See
 [docs/adr/0003-resend-instead-of-gmail.md](docs/adr/0003-resend-instead-of-gmail.md)

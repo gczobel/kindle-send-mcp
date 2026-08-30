@@ -1,18 +1,14 @@
-from typing import Callable, Optional
+from collections.abc import Callable
+from typing import Optional
 
 from .devices import DeviceStore
-from .gmail_oauth import GmailOAuth
 from .library import ResolvedBook
-from .smtp_sender import SmtpSender
+from .resend_sender import ResendSender
 from .state import DeviceState
 
 
 def _devices_as_dicts(devices: DeviceStore) -> list[dict]:
     return [d.to_dict() for d in devices.list_devices()]
-
-
-def _needs_authorization(oauth: GmailOAuth) -> dict:
-    return {"status": "needs_authorization", "auth_url": oauth.authorization_url()}
 
 
 def handle_list_devices(devices: DeviceStore) -> list[dict]:
@@ -28,9 +24,8 @@ def handle_send_book(
     book_id: int,
     target_nickname: Optional[str],
     *,
-    sender: SmtpSender,
+    sender: ResendSender,
     devices: DeviceStore,
-    oauth: GmailOAuth,
     state: DeviceState,
     resolve: Callable[[int], ResolvedBook],
 ) -> dict:
@@ -48,9 +43,6 @@ def handle_send_book(
             "devices": _devices_as_dicts(devices),
         }
 
-    if not oauth.is_authorized():
-        return _needs_authorization(oauth)
-
     book = resolve(book_id)
     try:
         sender.send_file(
@@ -58,8 +50,6 @@ def handle_send_book(
         )
     except Exception as exc:
         state.clear_default()
-        if not oauth.is_authorized():
-            return _needs_authorization(oauth)
         return {"status": "failed", "device": target, "error": str(exc)}
 
     if target_nickname is not None:

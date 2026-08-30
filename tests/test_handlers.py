@@ -45,15 +45,12 @@ def test_send_book_asks_for_device_when_no_default_and_no_target(tmp_path):
         Device(nickname="paperwhite", email="paperwhite_ab12@kindle.com")
     ]
     state = DeviceState(tmp_path)
-    oauth = MagicMock()
-    oauth.is_authorized.return_value = True
 
     result = handle_send_book(
         1,
         None,
         sender=sender,
         devices=devices,
-        oauth=oauth,
         state=state,
         resolve=lambda book_id: None,
     )
@@ -71,8 +68,6 @@ def test_send_book_uses_stored_default_silently(tmp_path):
     sender = MagicMock()
     devices = MagicMock()
     devices.get_email.return_value = "paperwhite_ab12@kindle.com"
-    oauth = MagicMock()
-    oauth.is_authorized.return_value = True
     book = ResolvedBook(
         title="Alice", author="Lewis Carroll", file_path=tmp_path / "a.epub"
     )
@@ -82,7 +77,6 @@ def test_send_book_uses_stored_default_silently(tmp_path):
         None,
         sender=sender,
         devices=devices,
-        oauth=oauth,
         state=state,
         resolve=lambda i: book,
     )
@@ -102,8 +96,6 @@ def test_send_book_explicit_target_overrides_and_becomes_new_default(tmp_path):
     sender = MagicMock()
     devices = MagicMock()
     devices.get_email.return_value = "new_ab12@kindle.com"
-    oauth = MagicMock()
-    oauth.is_authorized.return_value = True
     book = ResolvedBook(
         title="Alice", author="Lewis Carroll", file_path=tmp_path / "a.epub"
     )
@@ -113,7 +105,6 @@ def test_send_book_explicit_target_overrides_and_becomes_new_default(tmp_path):
         "new-device",
         sender=sender,
         devices=devices,
-        oauth=oauth,
         state=state,
         resolve=lambda i: book,
     )
@@ -126,11 +117,9 @@ def test_send_book_clears_default_on_failure_and_notes_device(tmp_path):
     state = DeviceState(tmp_path)
     state.set_default("paperwhite")
     sender = MagicMock()
-    sender.send_file.side_effect = RuntimeError("smtp auth failed")
+    sender.send_file.side_effect = RuntimeError("resend api error")
     devices = MagicMock()
     devices.get_email.return_value = "paperwhite_ab12@kindle.com"
-    oauth = MagicMock()
-    oauth.is_authorized.return_value = True
     book = ResolvedBook(
         title="Alice", author="Lewis Carroll", file_path=tmp_path / "a.epub"
     )
@@ -140,7 +129,6 @@ def test_send_book_clears_default_on_failure_and_notes_device(tmp_path):
         None,
         sender=sender,
         devices=devices,
-        oauth=oauth,
         state=state,
         resolve=lambda i: book,
     )
@@ -148,67 +136,9 @@ def test_send_book_clears_default_on_failure_and_notes_device(tmp_path):
     assert result == {
         "status": "failed",
         "device": "paperwhite",
-        "error": "smtp auth failed",
+        "error": "resend api error",
     }
     assert state.get_default() is None
-
-
-def test_send_book_needs_authorization_when_token_goes_stale_mid_send(tmp_path):
-    state = DeviceState(tmp_path)
-    state.set_default("paperwhite")
-    sender = MagicMock()
-    sender.send_file.side_effect = RuntimeError("invalid_grant")
-    devices = MagicMock()
-    devices.get_email.return_value = "paperwhite_ab12@kindle.com"
-    oauth = MagicMock()
-    oauth.is_authorized.side_effect = [True, False]
-    oauth.authorization_url.return_value = "https://kindle-mcp.example.com/oauth/start"
-    book = ResolvedBook(
-        title="Alice", author="Lewis Carroll", file_path=tmp_path / "a.epub"
-    )
-
-    result = handle_send_book(
-        1,
-        None,
-        sender=sender,
-        devices=devices,
-        oauth=oauth,
-        state=state,
-        resolve=lambda i: book,
-    )
-
-    assert result == {
-        "status": "needs_authorization",
-        "auth_url": "https://kindle-mcp.example.com/oauth/start",
-    }
-    assert state.get_default() is None
-
-
-def test_send_book_needs_authorization_when_not_authorized(tmp_path):
-    state = DeviceState(tmp_path)
-    state.set_default("paperwhite")
-    sender = MagicMock()
-    devices = MagicMock()
-    devices.get_email.return_value = "paperwhite_ab12@kindle.com"
-    oauth = MagicMock()
-    oauth.is_authorized.return_value = False
-    oauth.authorization_url.return_value = "https://kindle-mcp.example.com/oauth/start"
-
-    result = handle_send_book(
-        1,
-        None,
-        sender=sender,
-        devices=devices,
-        oauth=oauth,
-        state=state,
-        resolve=lambda i: None,
-    )
-
-    assert result == {
-        "status": "needs_authorization",
-        "auth_url": "https://kindle-mcp.example.com/oauth/start",
-    }
-    sender.send_file.assert_not_called()
 
 
 def test_send_book_reports_unknown_device_without_touching_default(tmp_path):
@@ -220,15 +150,12 @@ def test_send_book_reports_unknown_device_without_touching_default(tmp_path):
     devices.list_devices.return_value = [
         Device(nickname="paperwhite", email="paperwhite_ab12@kindle.com")
     ]
-    oauth = MagicMock()
-    oauth.is_authorized.return_value = True
 
     result = handle_send_book(
         1,
         "typo-device",
         sender=sender,
         devices=devices,
-        oauth=oauth,
         state=state,
         resolve=lambda i: None,
     )

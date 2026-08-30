@@ -3,16 +3,17 @@
 An MCP server that lets an AI agent send books from a Calibre library
 directly to a Kindle device, via Amazon's own [Send to Kindle by
 email](https://www.amazon.com/gp/sendtokindle) feature — no OAuth session,
-no reverse-engineered API. See
-[docs/adr/0001-smtp-delivery-instead-of-amazon-oauth.md](docs/adr/0001-smtp-delivery-instead-of-amazon-oauth.md)
+no reverse-engineered API. Delivery goes through the [Resend](https://resend.com)
+email API, see
+[docs/adr/0003-resend-instead-of-gmail.md](docs/adr/0003-resend-instead-of-gmail.md)
 for why.
 
 ## What this is, and isn't
 
 - **Read access** to a Calibre library's `metadata.db` and book files, to
   resolve a book by id to a real file to send.
-- **Send access** via SMTP, to any device you've registered by nickname
-  and `@kindle.com` address.
+- **Send access** via the Resend API, to any device you've registered by
+  nickname and `@kindle.com` address.
 - No metadata editing, no library writes, no Amazon account access at all.
 
 ## Reliability posture
@@ -20,90 +21,49 @@ for why.
 Amazon's Send-to-Kindle email service gives **no delivery confirmation**
 and **silently discards** mail from senders not on the account's Approved
 Personal Document Email List — no bounce, no error. A "sent" status from
-this server means the message was handed off to SMTP successfully, not
-that the Kindle received it. Every send is BCC'd to the sender's own
-inbox as an audit trail. See [CONTEXT.md](CONTEXT.md) for the exact
-vocabulary this server uses around delivery.
+this server means the message was handed to the Resend API successfully,
+not that the Kindle received it. Resend's own logs are the audit trail.
+See [CONTEXT.md](CONTEXT.md) for the exact vocabulary this server uses
+around delivery.
 
 ## Setting up your own instance
 
-Sender authentication is OAuth2, not a static App Password — see
-[docs/adr/0002-oauth2-for-gmail-instead-of-app-password.md](docs/adr/0002-oauth2-for-gmail-instead-of-app-password.md)
-for why (App Passwords can be gated entirely on brand-new Google
-accounts, with no documented waiting period).
+Sender authentication is a Resend API key, not SMTP credentials or OAuth —
+nothing expires and nothing needs re-authorizing. See
+[docs/adr/0003-resend-instead-of-gmail.md](docs/adr/0003-resend-instead-of-gmail.md)
+for why the Gmail OAuth path was replaced.
 
-### 1. Create a dedicated sender email account
+### 1. Create a Resend account and verify a sending domain
 
-Use an account separate from your personal email — this server holds a
-live credential and is reachable by anyone who finds its URL.
+1. Sign up at [resend.com](https://resend.com) and generate an API key
+   (API Keys -> Create API Key). It goes into the `RESEND_API_KEY`
+   environment variable.
+2. Add and verify a sending domain. The records for your sending
+   domain are documented in
+   [docs/adr/0003-resend-instead-of-gmail.md](docs/adr/0003-resend-instead-of-gmail.md).
+   The From address the server sends from is a subdomain address
+   (e.g. `kindle@<your-sending-domain>`), so the domain must show
+   **Verified** in the Resend dashboard.
 
 ### 2. Approve that sender in your Amazon account
 
 Manage Your Content and Devices -> Preferences -> Personal Document
-Settings -> Approved Personal Document E-mail List -> add the sender's
-address. Skip this and every send vanishes silently.
+Settings -> Approved Personal Document E-mail List -> add the From
+address (e.g. `kindle@<your-sending-domain>`). **Skip this and
+every send vanishes silently** — Amazon gives no bounce.
 
-### 3. Create a Google OAuth client
+### 3. Configure the server
 
-1. [Google Cloud Console](https://console.cloud.google.com) -> create a
-   project (or reuse one).
-2. APIs & Services -> Credentials -> **Google Auth Platform** -> Get
-   started. Audience: **External**. Skip the optional Branding fields
-   (home page, privacy policy, terms of service) -- those are only
-   required to switch to production/public status, which this doesn't
-   need.
-3. Audience tab -> **Test users** -> add the sender's Gmail address.
-   This, not Branding, is the actual fix if you see `Access blocked:
-   has not completed the Google verification process`.
-4. Clients tab -> Create OAuth client -> Application type: **Web
-   application** (not Desktop app -- Google restricts Desktop clients
-   to loopback redirects only, incompatible with a server-hosted
-   callback). Authorized redirect URI: your server's real public URL
-   plus `/oauth/callback` (e.g.
-   `https://kindle-mcp.example.com/oauth/callback`). Leave Authorized
-   JavaScript origins blank -- the code exchange happens server-side,
-   never in a browser.
-5. Copy the Client ID, Client Secret, and the exact redirect URI you
-   just registered.
-
-### 4. Configure the server
-
-- `SENDER_EMAIL` / `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` -- from
-  steps 1 and 3.
-- `PUBLIC_OAUTH_CALLBACK_URL` -- the exact redirect URI you registered
-  in step 3.4, copied verbatim (not reconstructed) so it can never
-  silently drift from what Google actually has on file.
-- `STATE_DIR` (default `/state`) -- where `devices.json` and
-  `oauth_refresh_token.json` are stored. Mount a host directory here,
+- `RESEND_API_KEY` — required. Missing at send time raises a clear error.
+- `RESEND_FROM` (e.g. `kindle@<your-sending-domain>`) — the sender
+  address; required, and must be on Amazon's approved list from step 2.
+- `STATE_DIR` (default `/state`) — where `devices.json` and
+  `default_device.json` are stored. Mount a host directory here,
   read-write.
-- `CALIBRE_LIBRARY_PATH` (default `/books`) -- your Calibre library,
+- `CALIBRE_LIBRARY_PATH` (default `/books`) — your Calibre library,
   mounted read-only.
 
-### 5. Authorize the sender account
-
-Nothing to do here upfront -- the first time you ask to send a book,
-`send_book` returns a `needs_authorization` status with a link (your
-server's public URL plus `/oauth/start`). The calling agent should
-present that link, ask you to confirm once you've signed in as the
-sender account, and retry the same request on its own -- the same
-pattern it already uses for `needs_device_selection`, not something you
-need to re-ask for yourself. This is a one-time step: the resulting
-refresh token is stored server-side and used silently for every future
-send.
-
-If you'd rather get it out of the way before ever asking for a book,
-you can open that link directly once the server's deployed.
-
-**Sign in as the exact account `SENDER_EMAIL` names.** If your browser
-is already signed into a different Google account, Google's account
-chooser defaults to it -- easy to click through without noticing.
-XOAUTH2 requires the account you authorize as and `SENDER_EMAIL` to be
-the *same* account; a mismatch fails at send time with `535 Username
-and Password not accepted`, not at authorization time (the consent
-step itself succeeds either way, so this doesn't surface until the
-first real send).
-
-### 6. Register your devices
+### 4. Register your devices
 
 Find each device's `@kindle.com` address in Manage Your Content and
 Devices -> Preferences -> Personal Document Settings -> Send-to-Kindle
@@ -114,10 +74,8 @@ no file editing needed.
 
 ```bash
 docker run -d \
-  -e SENDER_EMAIL=your-bot@gmail.com \
-  -e GOOGLE_CLIENT_ID=xxxxxxxxxx.apps.googleusercontent.com \
-  -e GOOGLE_CLIENT_SECRET=xxxxxxxxxxxxxxxx \
-  -e PUBLIC_OAUTH_CALLBACK_URL=https://kindle-mcp.example.com/oauth/callback \
+  -e RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxx \
+  -e RESEND_FROM=kindle@<your-sending-domain> \
   -v /path/to/your/state-dir:/state \
   -v /path/to/your/calibre/library:/books:ro \
   -p 9002:9002 \
@@ -132,8 +90,5 @@ docker run -d \
 - `send_book(book_id, target_device_nickname=None)` — sends the book
   with that id (looked up in `metadata.db`) to a device. If no device
   has been chosen yet (no default set, no explicit target given),
-  returns the device list instead of guessing which one you meant. If
-  the sender account hasn't been authorized yet (or a previous
-  authorization went stale), returns a `needs_authorization` status
-  with a link instead of failing outright — visit the link, then call
-  this again.
+  returns the device list instead of guessing which one you meant.
+  Sends directly — there is no authorization step.

@@ -57,6 +57,30 @@ Connect the client to the MCP endpoint. The tools are `list_devices`, `add_devic
 
 After any redeploy, reconnect the client. A session from before the redeploy holds a session id the new container does not know; the next call fails with `400 Bad Request: Missing session ID`, which clients show as a generic "Error occurred during tool execution". The server logs only the 400. Restart the client or toggle the server connection and retry. This is also in the README under Operations.
 
+## When a client cannot connect
+
+Two failures on this stack look like MCP client problems and are not. Both happened on 2026-09-20, after the stack was recreated under a new name.
+
+### The client keeps asking you to authenticate
+
+Check the auth proxy's log for `invalid_client` on a `refresh_token` request. That error means the proxy does not recognize the client, which means its data volume is new or empty.
+
+`mcp-auth-proxy` keeps its OAuth state in a BoltDB file under `/data`: registered clients, access tokens, refresh tokens, and the HMAC secret and JWT key it generates on first boot. Docker prefixes named volumes with the compose project name, so **renaming the stack silently mounts brand new, empty volumes**, `<new-stack>_kindle-mcp-auth-data` instead of `<old-stack>_kindle-mcp-auth-data`. The old data is still on disk, unused. Every registered client must authenticate again, because its registration and every token issued before the rename are gone.
+
+Re-authenticate the client, or restore the old volume's contents into the new one if you would rather not redo it. Both auth proxies are affected the same way, so a stack rename breaks the client on both hostnames.
+
+### The server logs 404s for `/.well-known/oauth-*`
+
+Those requests are OAuth discovery, and they should never reach the MCP server. The auth proxy answers them.
+
+A 404 for `/.well-known/oauth-protected-resource/mcp` or `/.well-known/oauth-authorization-server` means the tunnel is routing that path to the MCP server instead of to the auth proxy. cloudflared compiles the public hostname's `path` field as an **unanchored regular expression**, so a rule as innocent as `/oauth/*` also matches `/.well-known/oauth-protected-resource/mcp`. Delete the path rule in Zero Trust, then Networks, Tunnels, Public Hostnames.
+
+This is what blocks recovery from the previous section: a client that cannot complete discovery cannot register itself either. Fix the route before re-authenticating.
+
+### Check both hostnames from outside
+
+`scripts/check-mcp-auth.sh <kindle-host> <calibre-host>` curls the discovery endpoints and the unauthenticated MCP endpoint on each hostname, and reports which side is broken. Run it after any tunnel change, stack rename, or redeploy.
+
 ## Test the first send
 
 Call `send_book` with a real book id and a registered device. A "sent" response means Resend accepted the message. It does not mean the Kindle got it. Check the device, then the Resend dashboard if you want proof the message went out.

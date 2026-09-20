@@ -131,5 +131,19 @@ docker run -d \
   "Error occurred during tool execution" (the server logs only the 400).
   Reconnect or restart the MCP client (e.g. restart Claude Code or toggle the
   server connection) and retry.
+- **Renaming or recreating the stack forces every client to re-authenticate.**
+  Docker prefixes named volumes with the compose project name, so a new stack
+  name mounts an empty `mcp-auth-proxy` data volume: client registrations and
+  tokens from before the rename are gone, and the proxy log shows
+  `invalid_client` on a `refresh_token` request. Re-authenticate, or restore
+  the old volume's data first. See "When a client cannot connect" in the
+  deployment guide.
+- **404s for `/.well-known/oauth-*` in the server log are a tunnel bug, not a
+  server bug.** OAuth discovery belongs to the auth proxy, but a tunnel path
+  rule such as `/oauth/*` also matches those paths, because cloudflared treats
+  `path` as an unanchored regex. A client that cannot complete discovery cannot
+  register itself, so this blocks re-authenticating too. Same guide section.
+- `scripts/check-mcp-auth.sh <kindle-host> <calibre-host>` checks both failure
+  modes from outside in one command, and reports which hop is broken.
 - The server logs request lines only. The Resend dashboard is the audit trail
   for accepted sends (see Reliability posture).
